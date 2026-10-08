@@ -28,17 +28,17 @@ def platform_y(platform, x):
 
 def theme_color(score):
     """Return an (r, g, b) background colour for the current score, or None for the default."""
-    pass
+    return ((score >> 16) & 0xFF, (score >> 8) & 0xFF, score & 0xFF)
 
 
 def on_barrel_jumped(player, barrel):
     """Called when the player clears a barrel; add a bonus effect here."""
-    pass
+    player.barrels_jumped += 1
 
 
-def score_multiplier(score):
+def score_multiplier(player):
     """Return a multiplier applied to points earned from clearing a barrel, or None for the default 1x."""
-    pass
+    return player.barrels_jumped
 
 
 class Player:
@@ -50,6 +50,7 @@ class Player:
         self.vel = pygame.Vector2()
         self.on_ground = True
         self.ladder = None
+        self.barrels_jumped = 0
 
     def center(self):
         return pygame.Vector2(self.pos.x, self.pos.y - PLAYER_H / 2)
@@ -162,7 +163,7 @@ class Barrel:
             return
         self.pos.y = platform_y(plat, self.pos.x) - BARREL_R
         for index, (lx, _, upper) in enumerate(LADDERS):
-            if upper == self.plat and abs(self.pos.x - lx) < 3 and index not in self.skip:
+            if upper == self.plat and abs(self.pos.x - lx) < 6 and index not in self.skip:
                 self.skip.add(index)
                 if random.random() < 0.7:
                     self.ladder = index
@@ -224,17 +225,17 @@ def main():
             for barrel in barrels:
                 barrel.update(dt)
                 hit_range = BARREL_R + PLAYER_W / 2
-                if player.center().distance_squared_to(barrel.pos) < hit_range ** 2:
+                player_above = player.pos.y < barrel.pos.y - BARREL_R
+                if not player_above and player.center().distance_squared_to(barrel.pos) < hit_range ** 2:
                     lives -= 1
                     player.reset()
                     barrels.clear()
                     state = "play" if lives > 0 else "lose"
                     break
-                above = 0 < barrel.pos.y - player.pos.y + BARREL_R < 40
-                if not player.on_ground and above and abs(barrel.pos.x - player.pos.x) < 12 and not barrel.scored:
+                if not player.on_ground and player_above and abs(barrel.pos.x - player.pos.x) < 20 and not barrel.scored:
                     barrel.scored = True
-                    score += int(100 * (score_multiplier(score) or 1))
                     on_barrel_jumped(player, barrel)
+                    score += int(100 * (score_multiplier(player) or 1))
             barrels[:] = [b for b in barrels if b.pos.y < HEIGHT + 30]
             if player.center().distance_to(pygame.Vector2(PRINCESS_POS)) < 24:
                 score += 1000
